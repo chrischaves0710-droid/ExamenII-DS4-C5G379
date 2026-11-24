@@ -54,13 +54,19 @@ Cada comentario `TODO` describe exactamente lo que se espera. Los archivos marca
 
 ## Evidencia (M8)
 
-Guarde en `app/docs/evidencia-android.png` una captura de **su** app corriendo en el emulador,
-en la pestaña **Perfil** (debe verse *Plataforma: android*), y complete:
+- Carné: C5G379
+- appId: cr.ac.ucr.if0009.c5g379
+- appName: Préstamos Lascarez
+- Node: v24.20.0
+- Ionic CLI: 7.2.1
+- Capacitor: 8.6.2
+- ¿Se generó el APK de depuración?: Sí.
 
-- Carné:
-- appId:
-- Versión de Node / Ionic CLI / Capacitor (`node -v`, `ionic -v`, `npx cap -V`):
-- ¿Se generó el APK de depuración? (sí/no):
+La compilación de Android finalizó correctamente
+con BUILD SUCCESSFUL y se verificó la existencia
+del APK de depuración.
+
+![Evidencia de compilación](app/docs/evidencia-build.png)
 
 ## Reglas
 
