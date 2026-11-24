@@ -70,16 +70,22 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import {
-  IonPage, IonHeader, IonToolbar, IonButtons, IonBackButton, IonTitle, IonContent, IonList, IonItem,
-  IonInput, IonSelect, IonSelectOption, IonLabel, IonButton,
+  IonPage, IonHeader, IonToolbar, IonButtons,
+  IonBackButton, IonTitle, IonContent, IonList,
+  IonItem, IonInput, IonSelect, IonSelectOption,
+  IonLabel, IonButton,
   loadingController, onIonViewWillEnter, useIonRouter,
 } from '@ionic/vue';
-import { actualizar, categorias, crear, obtener, type Categoria, type DatosEquipo, type Estado } from '@/services/equipos';
+
+import {
+  actualizar, categorias, crear, obtener,
+  type Categoria, type DatosEquipo, type Estado
+} from '@/services/equipos';
+
 import { ErrorApi } from '@/services/errores';
 import { mostrarToast } from '@/services/avisos';
 import { useConexion, vibrar } from '@/composables/useConexion';
 
-// id llega por props: true en la ruta equipos/:id/editar; en equipos/nuevo es undefined
 const props = defineProps<{ id?: string }>();
 const id = props.id;
 
@@ -88,7 +94,12 @@ const { conectado } = useConexion();
 const hoy = new Date().toISOString().slice(0, 10);
 
 const vacio = (): DatosEquipo => ({
-  codigo: '', nombre: '', categoria_id: null, estado: 'disponible', fecha_adquisicion: hoy, costo_interno: null,
+  codigo: '',
+  nombre: '',
+  categoria_id: null,
+  estado: 'disponible',
+  fecha_adquisicion: hoy,
+  costo_interno: null
 });
 
 const datos = reactive<DatosEquipo>(vacio());
@@ -96,30 +107,114 @@ const listaCategorias = ref<Categoria[]>([]);
 const estadoActual = ref<Estado>('disponible');
 const errores = ref<Record<string, string>>({});
 
-/**
- * TODO [M5] Al entrar a la página:
- *  - Cargar las categorías para el ion-select (categorias()).
- *  - Nuevo: dejar el formulario vacío con vacio().
- *  - Edición: obtener(id) y llenar datos. Guarde el estado actual en estadoActual.
- *    costo_interno queda en null: la API no lo devuelve (EquipoResource lo oculta).
- *  - 404 → toast y volver a /tabs/equipos.
- */
+// Regresar a la lista de equipos.
+function volverLista() {
+  if (ionRouter.canGoBack()) {
+    ionRouter.back();
+  } else {
+    ionRouter.navigate('/tabs/equipos', 'back', 'replace');
+  }
+}
+
+// Cargar los datos cada vez que se entra al formulario.
 onIonViewWillEnter(async () => {
   errores.value = {};
-  void [categorias, obtener, listaCategorias, estadoActual, ionRouter];
+  Object.assign(datos, vacio());
+  estadoActual.value = 'disponible';
+
+  try {
+    listaCategorias.value = await categorias();
+
+    if (id) {
+      const equipo = await obtener(id);
+
+      estadoActual.value = equipo.estado;
+
+      Object.assign(datos, {
+        codigo: equipo.codigo,
+        nombre: equipo.nombre,
+        categoria_id: equipo.categoria.id,
+        estado: equipo.estado === 'prestado'
+          ? undefined
+          : equipo.estado,
+        fecha_adquisicion: equipo.fecha_adquisicion,
+        costo_interno: null
+      });
+    }
+
+  } catch (error) {
+    if (error instanceof ErrorApi && error.status === 404) {
+      await mostrarToast('El equipo ya no existe.', 'warning');
+      volverLista();
+
+    } else if (!(error instanceof ErrorApi && error.status === 401)) {
+      await mostrarToast('No se pudieron cargar los datos.', 'danger');
+    }
+  }
 });
 
-/**
- * TODO [M5] guardar()
- *  1. Mostrar loadingController ("Guardando…") y cerrarlo SIEMPRE, salga bien o mal.
- *  2. Enviar el cuerpo con código en mayúscula y sin espacios sobrantes, y costo_interno como número.
- *     Si el equipo está prestado, no envíe el campo estado.
- *  3. Nuevo → crear(); edición → actualizar(id).
- *  4. Éxito: vibrar() [M7], toast y volver a la lista con useIonRouter (back si se puede).
- *  5. 422 → mostrar el primer mensaje de cada campo debajo de su campo (error.erroresPorCampo).
- *     404 → toast "El equipo ya no existe."   ·   otros → toast genérico.
- */
+// Crear o actualizar un equipo.
 async function guardar() {
-  void [loadingController, actualizar, crear, ErrorApi, mostrarToast, vibrar];
+  errores.value = {};
+
+  const loading = await loadingController.create({
+    message: 'Guardando...'
+  });
+
+  await loading.present();
+
+  try {
+    const cuerpo: DatosEquipo = {
+      ...datos,
+      codigo: datos.codigo.trim().toUpperCase(),
+      nombre: datos.nombre.trim(),
+      costo_interno:
+        datos.costo_interno === null ||
+        String(datos.costo_interno).trim() === ''
+          ? null
+          : Number(datos.costo_interno)
+    };
+
+    // No modificar el estado de un equipo prestado.
+    if (estadoActual.value === 'prestado') {
+      delete cuerpo.estado;
+    }
+
+    if (id) {
+      await actualizar(id, cuerpo);
+    } else {
+      await crear(cuerpo);
+    }
+
+    await vibrar();
+
+    await mostrarToast(
+      id ? 'Equipo actualizado.' : 'Equipo creado.',
+      'success'
+    );
+
+    volverLista();
+
+  } catch (error) {
+    if (error instanceof ErrorApi) {
+
+      if (error.status === 422) {
+        errores.value = error.erroresPorCampo;
+
+      } else if (error.status === 404) {
+        await mostrarToast('El equipo ya no existe.', 'warning');
+        volverLista();
+
+      } else if (error.status !== 401) {
+        await mostrarToast('No se pudo guardar el equipo.', 'danger');
+      }
+
+    } else {
+      await mostrarToast('Ocurrió un error al guardar.', 'danger');
+    }
+
+  } finally {
+    await loading.dismiss();
+  }
 }
 </script>
