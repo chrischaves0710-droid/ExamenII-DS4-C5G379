@@ -50,7 +50,7 @@ export function useAuth() {
 
     try {
       await SecureStorage.set(CLAVE_TOKEN, respuesta.token);
-      await SecureStorage.set(CLAVE_USUARIO, respuesta.usuario);
+      await SecureStorage.set(CLAVE_USUARIO, { ...respuesta.usuario });
 
       token.value = respuesta.token;
       usuario.value = respuesta.usuario;
